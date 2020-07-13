@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30204.135
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "SpiderController", "SpiderController\SpiderController.pyproj", "{FA0F8953-8686-47F0-A60E-42F7AB72FBB0}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "SpiderWalker", "SpiderWalker\SpiderWalker.pyproj", "{0BB556E2-7D43-45CB-ACE1-9458459F34B9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FA0F8953-8686-47F0-A60E-42F7AB72FBB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA0F8953-8686-47F0-A60E-42F7AB72FBB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BB556E2-7D43-45CB-ACE1-9458459F34B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BB556E2-7D43-45CB-ACE1-9458459F34B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74D0A583-86DE-4A55-A81D-A1A4DF168732}
+	EndGlobalSection
+EndGlobal
