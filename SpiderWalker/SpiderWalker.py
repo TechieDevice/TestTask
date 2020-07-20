@@ -1,13 +1,13 @@
 from bs4 import BeautifulSoup
 from selenium import webdriver
 import asyncio
-import pika
 import time
+import aiohttp
+from aio_pika import connect, Message, IncomingMessage
 
-# tasks = []
 
-# Скачивание кода страницы
-def load(url, num):
+# Скачивание кода страницы через браузер
+def load_browser(url, num):
     start = time.time()
     browser = webdriver.Chrome('./chromedriver.exe')
     try:
@@ -18,8 +18,26 @@ def load(url, num):
         return "Неправильная ссылка"
     return content
 
+
+# Получение кода
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+# Скачивание страницы через http клиент
+async def load_http(url, num):
+    start = time.time()
+    try:
+        async with aiohttp.ClientSession() as session:
+            html = await fetch(session, url)
+        print('Process load{} took: {:.2f} seconds'.format(num, time.time() - start))
+    except:
+        return "Неправильная ссылка"
+    return html
+
+
 # Парсинг
-def parse_data(content, num):
+async def parse_data(content, num):
     start = time.time()
     soup = BeautifulSoup(content, 'lxml')
     link_list = soup.find_all('a')
@@ -29,8 +47,9 @@ def parse_data(content, num):
     print('Process parse{} took: {:.2f} seconds'.format(num, time.time() - start))
     return links
 
-# Для тестов
-def links_writer(url, data, num):
+
+# Запись в файл (для тестов)
+async def links_writer(url, data, num):
     start = time.time()
     with open('./links{}.txt'.format(num), 'w') as file:
         for link in data:
@@ -46,64 +65,70 @@ def links_writer(url, data, num):
             else:
                 file.write(url + '\n')
         file.close()
-        print('Process write{} took: {:.2f} seconds'.format(num, time.time() - start))
-        return ('./links{}.txt complite'.format(num))
+    print('Process write{} took: {:.2f} seconds'.format(num, time.time() - start))
+    return ('./links{}.txt complite'.format(num))
 
-# 
-def data_releaser(url, num):
+
+# Получатель ссылок
+async def data_releaser(url, num):
     start = time.time()
-    data_content = load(url, num)
-    data = parse_data(data_content, num)
-    #result = links_writer(url, data, num)
-    print('Done{}, prosess took: {:.2f} seconds'.format(num, time.time() - start))
+    print(url)
+    #data_content = load_browser(url, num)
+    data_content = await load_http(url, num)
+    data = await parse_data(data_content, num)
+    result = await links_writer(url, data, num)
+    await asyncio.sleep(2)
+    print('Done{} {}, prosess took: {:.2f} seconds'.format(num, url, time.time() - start))
 
     return data
 
-#def task_maker():
-#    while True:
-#        if yes == True:
-#            i = 0
-#            task = asyncio.create_task(data_releaser(url, i))
-#            tasks.append(task)
-#            await task 
-#        await asyncio.sleep(0)
-
 
 # Вызывается при получании сообщения
-def callback(ch, method, properties, body):
-    url = body.decode('utf-8')
-    data = data_releaser(url, 0)
-    channel.queue_declare(queue='linkReceiver')
+async def on_message(message: IncomingMessage):
+    url = message.body.decode('utf-8')
+    num = str(url[0])
+    url = url[1:]
+    data = await data_releaser(url, num)
+
+    global channel
+
     for link in data:
         if link:
             if link[0] == '/':
-                channel.basic_publish(exchange='', routing_key='linkReceiver', body='неполная ссылка - ' + link)
+                await channel.default_exchange.publish(Message(bytes(num + 'неполная ссылка - ' + link, 'utf-8')), routing_key="linkReceiver")
             elif link[0] == '#':
-                channel.basic_publish(exchange='', routing_key='linkReceiver', body='якорь - ' + url + link)
+                await channel.default_exchange.publish(Message(bytes(num + 'якорь - ' + url + link, 'utf-8')), routing_key="linkReceiver")
             elif link[0] != 'h':
-                channel.basic_publish(exchange='', routing_key='linkReceiver', body='мусор - ' + link)
+                await channel.default_exchange.publish(Message(bytes(num + 'мусор - ' + link, 'utf-8')), routing_key="linkReceiver")
             else:
-                channel.basic_publish(exchange='', routing_key='linkReceiver', body=link)
+                await channel.default_exchange.publish(Message(bytes(num + link, 'utf-8')), routing_key="linkReceiver")
 
-    channel.basic_publish(exchange='', routing_key='linkReceiver', body='done')
+    await channel.default_exchange.publish(Message(bytes(num + 'done', 'utf-8')), routing_key="linkReceiver")
+
 
 # Прослушивание
-async def main():
-    channel.queue_declare(queue='linkSender')
-    channel.basic_consume(queue='linkSender', on_message_callback=callback, auto_ack=True)
-    
-    print(' [*] Waiting for messages. To exit press CTRL+C')
-    channel.start_consuming()
+async def main(loop):
+    global connection
+    connection = await connect("amqp://guest:guest@localhost/", loop=loop)
+    global channel
+    channel = await connection.channel()
 
-#async def main():
-#    main_task1 = asyncio.create_task(task_maker())
-#    main_task2 = asyncio.create_task(conn())
-#    await main_task1
-#    await main_task2
+    queue = await channel.declare_queue("linkSender")
 
+    await queue.consume(on_message, no_ack=True)
+
+
+# data_releaser('https://edu.fb.tusur.ru/', 0)
 
 if __name__ == '__main__':
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = connection.channel()
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.create_task(main(loop))
+    print(" [*] Waiting for messages. To exit press CTRL+C")
+    loop.run_forever()
+
+
+#if __name__ == '__main__':
+#    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+#    channel = connection.channel()
+#    asyncio.run(main())
 

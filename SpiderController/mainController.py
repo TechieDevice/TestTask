@@ -4,6 +4,7 @@ from flask import render_template
 from flask import redirect
 from flask import url_for
 from flask import request
+import random
 
 from flask_sqlalchemy import SQLAlchemy
 import pika
@@ -22,7 +23,7 @@ class urllinks:
     channel = conn.channel()
     linkURL = ''
     linksMess = ''
-
+    num = '0'
 
 #--------------DATABASE-----------------
 
@@ -48,26 +49,39 @@ def queryPost():
 #--------------PAGE-----------------
 
 def callback(ch, method, properties, body):
-    if body.decode('utf-8') != 'done':
-        url = body.decode('utf-8')
-        addLink(urllinks.linkURL, url)
-        urllinks.linksMess = urllinks.linksMess + url + ' \n'
+    mes = body.decode('utf-8')
+    if str(mes[0]) == urllinks.num:
+        url = mes[1:]
+        if url != 'done':
+            addLink(urllinks.linkURL, url)
+            urllinks.linksMess = urllinks.linksMess + url + ' \n'
+        else:
+            urllinks.channel.stop_consuming()
     else:
-        urllinks.channel.stop_consuming()
-        urllinks.channel.close()
+        urllinks.channel.queue_declare(queue='linkReceiver')
+        urllinks.channel.basic_publish(exchange='', routing_key='linkReceiver', body = mes)
+
+
 
 @app.route('/', methods=['GET', 'POST'])
 def pageRender():
     if request.method == 'POST':
         urllinks.linksMess = ''
+        urllinks.conn = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
         urllinks.channel = urllinks.conn.channel()
         urllinks.linkURL = str(request.form['link'])
+        urllinks.num = str(random.randint(1, 9))
         urllinks.channel.queue_declare(queue='linkSender')
-        urllinks.channel.basic_publish(exchange='', routing_key='linkSender', body=urllinks.linkURL)
+        urllinks.channel.basic_publish(exchange='', routing_key='linkSender', body=urllinks.num + urllinks.linkURL)
+
+        print(urllinks.num + ' ' + urllinks.linkURL + ' send')
+
         urllinks.channel.queue_declare(queue='linkReceiver')
         urllinks.channel.basic_consume(queue='linkReceiver', on_message_callback=callback, auto_ack=True)
 
         urllinks.channel.start_consuming()
+        
+        print(urllinks.linkURL + ' done')
         return render_template('mainPage.html', massage=urllinks.linksMess)
 
     return render_template('mainPage.html', massage='')
