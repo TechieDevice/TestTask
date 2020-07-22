@@ -1,19 +1,19 @@
+import time
+from functools import partial
+import asyncio
+import aiohttp
+from aio_pika import connect, Message, IncomingMessage, Exchange
 from bs4 import BeautifulSoup
 from selenium import webdriver
-import asyncio
-import time
-import aiohttp
-from aio_pika import connect, Message, IncomingMessage
-
 
 # Скачивание кода страницы через браузер
-def load_browser(url, num):
+def load_browser(url):
     start = time.time()
     browser = webdriver.Chrome('./chromedriver.exe')
     try:
         browser.get(url)
         content = browser.page_source
-        print('Process load{} took: {:.2f} seconds'.format(num, time.time() - start))
+        print('Process load took: {:.2f} seconds'.format( time.time() - start))
     except:
         return "Неправильная ссылка"
     return content
@@ -25,33 +25,33 @@ async def fetch(session, url):
         return await response.text()
 
 # Скачивание страницы через http клиент
-async def load_http(url, num):
+async def load_http(url):
     start = time.time()
     try:
         async with aiohttp.ClientSession() as session:
             html = await fetch(session, url)
-        print('Process load{} took: {:.2f} seconds'.format(num, time.time() - start))
+        print('Process load took: {:.2f} seconds'.format(time.time() - start))
     except:
         return "Неправильная ссылка"
     return html
 
 
 # Парсинг
-async def parse_data(content, num):
+def parse_data(html_data):
     start = time.time()
-    soup = BeautifulSoup(content, 'lxml')
+    soup = BeautifulSoup(html_data, 'lxml')
     link_list = soup.find_all('a')
     links = []
     for link in link_list:
         links.append(link.get('href'))
-    print('Process parse{} took: {:.2f} seconds'.format(num, time.time() - start))
+    print('Process parse took: {:.2f} seconds'.format(time.time() - start))
     return links
 
 
 # Запись в файл (для тестов)
-async def links_writer(url, data, num):
+def links_writer(url, data, user_id):
     start = time.time()
-    with open('./links{}.txt'.format(num), 'w') as file:
+    with open('./links {}.txt'.format(user_id), 'w') as file:
         for link in data:
             if link:
                 if link[0] == '/':
@@ -65,60 +65,63 @@ async def links_writer(url, data, num):
             else:
                 file.write(url + '\n')
         file.close()
-    print('Process write{} took: {:.2f} seconds'.format(num, time.time() - start))
-    return ('./links{}.txt complite'.format(num))
+    print('Process write took: {:.2f} seconds'.format(time.time() - start))
+    return ('./links {}.txt'.format(user_id))
 
 
-# Получатель ссылок
-async def data_releaser(url, num):
+async def links_fetcher(url, user_id):
     start = time.time()
     print(url)
-    #data_content = load_browser(url, num)
-    data_content = await load_http(url, num)
-    data = await parse_data(data_content, num)
-    result = await links_writer(url, data, num)
-    await asyncio.sleep(2)
-    print('Done{} {}, prosess took: {:.2f} seconds'.format(num, url, time.time() - start))
+    #data_content = load_browser(url)
+    html_data = await load_http(url)
+    links_mas = parse_data(html_data)
+    #result = links_writer(url, links, user_id)
 
-    return data
+    links = url + '\n'
+    for link in links_mas:
+            if not link:
+                continue
 
-
-# Вызывается при получании сообщения
-async def on_message(message: IncomingMessage):
-    url = message.body.decode('utf-8')
-    num = str(url[0])
-    url = url[1:]
-    data = await data_releaser(url, num)
-
-    global channel
-
-    for link in data:
-        if link:
             if link[0] == '/':
-                await channel.default_exchange.publish(Message(bytes(num + 'неполная ссылка - ' + link, 'utf-8')), routing_key="linkReceiver")
+                links = links + 'неполная ссылка - ' + link + "\n"
             elif link[0] == '#':
-                await channel.default_exchange.publish(Message(bytes(num + 'якорь - ' + url + link, 'utf-8')), routing_key="linkReceiver")
+                links = links + 'якорь - ' + url + link + "\n"
             elif link[0] != 'h':
-                await channel.default_exchange.publish(Message(bytes(num + 'мусор - ' + link, 'utf-8')), routing_key="linkReceiver")
+                links = links + 'мусор - ' + link + "\n"
             else:
-                await channel.default_exchange.publish(Message(bytes(num + link, 'utf-8')), routing_key="linkReceiver")
+                links = links + link + "\n"
 
-    await channel.default_exchange.publish(Message(bytes(num + 'done', 'utf-8')), routing_key="linkReceiver")
+    await asyncio.sleep(2)
+    print('Done {} for {}, prosess took: {:.2f} seconds'.format(url, user_id, time.time() - start))
+
+    return links
+
+
+async def on_message(exchange: Exchange, message: IncomingMessage):
+    with message.process():
+        url = message.body.decode('utf-8')
+        user_id = message.correlation_id
+
+        links = await links_fetcher(url, user_id)
+
+        await exchange.publish(
+            Message(
+                bytes(links, 'utf-8'),
+                correlation_id=user_id
+            ),
+            routing_key=message.reply_to
+        )
+        print(user_id + ' ' + url + ' send to ' + message.reply_to)
 
 
 # Прослушивание
 async def main(loop):
-    global connection
     connection = await connect("amqp://guest:guest@localhost/", loop=loop)
-    global channel
     channel = await connection.channel()
 
     queue = await channel.declare_queue("linkSender")
-
-    await queue.consume(on_message, no_ack=True)
-
-
-# data_releaser('https://edu.fb.tusur.ru/', 0)
+    await queue.consume(partial(on_message, channel.default_exchange))
+    
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
@@ -127,8 +130,4 @@ if __name__ == '__main__':
     loop.run_forever()
 
 
-#if __name__ == '__main__':
-#    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-#    channel = connection.channel()
-#    asyncio.run(main())
 

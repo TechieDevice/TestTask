@@ -1,29 +1,23 @@
+import uuid
+import asyncio
+from aio_pika import connect, Message, IncomingMessage
 from flask import Flask
-
 from flask import render_template
 from flask import redirect
 from flask import url_for
 from flask import request
-import random
-
 from flask_sqlalchemy import SQLAlchemy
-import pika
+import config
 
 app = Flask(__name__)
-
-app.secret_key = 'lol_da_ladno_kak_ti_ego_ugadal'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:1234567890@localhost/test_database'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.secret_key = config.SECRET_KEY
+app.config.from_object(config.Config)
 db = SQLAlchemy(app)
 
 
-class urllinks:
-    conn = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = conn.channel()
-    linkURL = ''
-    linksMess = ''
-    num = '0'
+class GlobalVar:
+    futures = dict()
+
 
 #--------------DATABASE-----------------
 
@@ -37,8 +31,9 @@ class Link(db.Model):
     def __repr__(self):
         return "<Link(name='%s', url='%s')>" % (self.base_url, self.url)
 
-def addLink(Base_url, strURL):
-    db.session.add(Link(base_url=Base_url, url=strURL))
+
+def addLink(base_url, url):
+    db.session.add(Link(base_url=base_url, url=url))
     db.session.commit()
 
 def queryPost():
@@ -46,42 +41,73 @@ def queryPost():
     return links
 
 
+#--------------MESSAGE SENDER-----------------
+
+async def on_response(message: IncomingMessage):
+    mes = message.body.decode('utf-8')
+    links = mes.split("\n")
+    mes = ''
+    base_link = links.pop(0)
+    for link in links:
+        mes = mes + link + '\n'
+        addLink(base_link, link)
+
+    print(message.correlation_id + ' ' + base_link + ' done')
+    future = GlobalVar.futures.pop(message.correlation_id)
+    future.set_result(mes)
+    
+
+async def sender(loop, channel, base_link, user_id):
+    future = loop.create_future()
+    GlobalVar.futures[user_id] = future
+
+    callback_queue = await channel.declare_queue(exclusive=True)
+    await callback_queue.consume(on_response)
+
+    await channel.default_exchange.publish(
+        Message(
+            bytes(base_link, 'utf-8'),
+            correlation_id=user_id,
+            reply_to = callback_queue.name
+        ), 
+        routing_key="linkSender"
+    )
+
+    print(user_id + ' ' + base_link + ' send to ' + callback_queue.name)
+
+    return str(await future) 
+
+
+async def sender_conn(loop, base_link, user_id):
+    conn = await connect("amqp://guest:guest@localhost/", loop=loop)
+    channel = await conn.channel()
+
+    queue = await channel.declare_queue("linkReceiver")
+    await queue.consume(on_response)
+
+    print(user_id + ' ' + base_link + ' presend')
+
+    links_message = await sender(loop, channel, base_link, user_id)
+
+    print(user_id + ' ' + base_link + ' postsend')
+
+    return links_message
+    
+
 #--------------PAGE-----------------
-
-def callback(ch, method, properties, body):
-    mes = body.decode('utf-8')
-    if str(mes[0]) == urllinks.num:
-        url = mes[1:]
-        if url != 'done':
-            addLink(urllinks.linkURL, url)
-            urllinks.linksMess = urllinks.linksMess + url + ' \n'
-        else:
-            urllinks.channel.stop_consuming()
-    else:
-        urllinks.channel.queue_declare(queue='linkReceiver')
-        urllinks.channel.basic_publish(exchange='', routing_key='linkReceiver', body = mes)
-
-
 
 @app.route('/', methods=['GET', 'POST'])
 def pageRender():
     if request.method == 'POST':
-        urllinks.linksMess = ''
-        urllinks.conn = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-        urllinks.channel = urllinks.conn.channel()
-        urllinks.linkURL = str(request.form['link'])
-        urllinks.num = str(random.randint(1, 9))
-        urllinks.channel.queue_declare(queue='linkSender')
-        urllinks.channel.basic_publish(exchange='', routing_key='linkSender', body=urllinks.num + urllinks.linkURL)
-
-        print(urllinks.num + ' ' + urllinks.linkURL + ' send')
-
-        urllinks.channel.queue_declare(queue='linkReceiver')
-        urllinks.channel.basic_consume(queue='linkReceiver', on_message_callback=callback, auto_ack=True)
-
-        urllinks.channel.start_consuming()
+        links_message = ''
+        base_link = str(request.form['link'])
         
-        print(urllinks.linkURL + ' done')
-        return render_template('mainPage.html', massage=urllinks.linksMess)
+        user_id = str(uuid.uuid4())
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        links_message = loop.run_until_complete(sender_conn(loop, base_link, user_id))
+ 
+        return render_template('mainPage.html', massage=links_message)
 
     return render_template('mainPage.html', massage='')
