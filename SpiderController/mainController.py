@@ -1,12 +1,21 @@
 import uuid
 import json
+from enum import Enum
+from enum import EnumMeta
 from dataclasses import dataclass
-from enum import Enum, EnumMeta
+
 import asyncio
-from aio_pika import connect, Message, IncomingMessage
+from aio_pika import connect
+from aio_pika import Message
+from aio_pika import IncomingMessage
 from flask import Flask
-from flask import render_template, request, url_for, redirect
+from flask import render_template
+from flask import request
+from flask import url_for
+from flask import redirect
 from flask_sqlalchemy import SQLAlchemy
+import reorder_python_imports
+
 import config
 
 
@@ -22,6 +31,14 @@ class LinkType(str, Enum):
     direct_link = 'direct_link'
     junk_link = 'junk_link'
     base_link = 'base_link'
+
+
+prefix = {
+    LinkType.partial_link: 'неполная ссылка - ', 
+    LinkType.hash_link: 'якорь - ', 
+    LinkType.direct_link: '', 
+    LinkType.junk_link: 'мусор - '
+}
 
 
 @dataclass
@@ -49,39 +66,51 @@ class LinkTable(db.Model):
     __tablename__ = 'links'
 
     id = db.Column(db.Integer, primary_key=True)
-    base_url = db.Column(db.String, nullable=False)
-    url = db.Column(db.String, nullable=False)
+    base_id = db.Column(db.Integer, db.ForeignKey('base_links.id'))
+    url = db.Column(db.String)
+    link_type = db.Column(db.String)
 
     def __repr__(self):
-        return "<Link(name='%s', url='%s')>" % (self.base_url, self.url)
+        return "<Link(base='%s', url='%s')>" % (self.base_id, self.url)
 
 
-def addLink(base_url, url):
-    db.session.add(LinkTable(base_url=base_url, url=url))
+class BaseLinkTable(db.Model):
+    __tablename__ = 'base_links'
+
+    id = db.Column(db.Integer, primary_key=True)
+    base_url = db.Column(db.String)
+
+    def __repr__(self):
+        return "<Link(id='%s', url='%s')>" % (self.id, self.base_url)
+
+
+def addLink(base_id, url, link_type):
+    db.session.add(LinkTable(base_id=base_id, url=url, link_type = link_type))
     db.session.commit()
 
 
-def queryPost():
-    links = db.session.query(LinkTable).all()
-    return links
+def addBaseLink(base_url):
+    db.session.add(BaseLinkTable(base_url=base_url))
+    db.session.commit()
+
+
+def queryLink(url):
+    base_link = BaseLinkTable.query.filter_by(base_url=url).first()
+    return base_link.id
+
+
+# db.create_all()                                                       # Для внесения изменений)  
 
 
 # --------------MESSAGE SENDER-----------------
 
-def mes_sort(links, base_link):
+def mes_sort(links, base_id, base_link):
     mes = ''
     for link in links:
         link = link_decoder(link)
-        addLink(base_link.url, link.url)
 
-        if link.link_type == LinkType.partial_link:
-            mes = mes + 'неполная ссылка - ' + link.url + '\n'
-        elif link.link_type == LinkType.hash_link:
-            mes = mes + 'якорь - ' + base_link.url + link.url + '\n'
-        elif link.link_type == LinkType.direct_link:
-            mes = mes + link.url + '\n'
-        else: 
-            mes = mes + 'мусор - ' + link.url + '\n'   
+        mes = mes + prefix.get(link.link_type) + link.url + '\n'
+        addLink(base_id, link.url, link.link_type)
 
     return mes
 
@@ -92,7 +121,10 @@ async def on_response(message: IncomingMessage):
     links = json.loads(message.body.decode('utf-8'))
     base_link = link_decoder(links.pop(0))
 
-    mes = mes_sort(links, base_link)
+    addBaseLink(base_link.url)
+    id = queryLink(base_link.url)
+
+    mes = mes_sort(links, id, base_link)
 
     print(message.correlation_id + ' ' + base_link.url + ' done')
     future = GlobalVar.futures.pop(message.correlation_id)

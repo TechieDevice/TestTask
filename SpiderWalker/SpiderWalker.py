@@ -1,12 +1,18 @@
 import time
 import json
-from enum import Enum, EnumMeta
+from enum import Enum
+from enum import EnumMeta
 from dataclasses import dataclass
 from functools import partial
+
 import asyncio
 import aiohttp
-from aio_pika import connect, Message, IncomingMessage, Exchange
+from aio_pika import connect
+from aio_pika import Message
+from aio_pika import IncomingMessage
+from aio_pika import Exchange
 from bs4 import BeautifulSoup
+import reorder_python_imports
 from selenium import webdriver
 
 
