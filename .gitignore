@@ -148,6 +148,9 @@ cython_debug/
 ##
 *.sln
 
+# Python projects
+*.pyproj
+
 # User-specific files
 *.rsuser
 *.suo

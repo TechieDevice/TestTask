@@ -3,6 +3,8 @@ import json
 from enum import Enum
 from enum import EnumMeta
 from dataclasses import dataclass
+import logging
+import sys
 
 import asyncio
 from aio_pika import connect
@@ -19,11 +21,28 @@ import reorder_python_imports
 import config
 
 
+FORMATTER = logging.Formatter(" * %(asctime)s — %(name)s — %(levelname)s — %(message)s")
+
+
+def get_console_handler():
+   console_handler = logging.StreamHandler(sys.stdout)
+   console_handler.setFormatter(FORMATTER)
+   return console_handler
+
+
+def get_logger(logger_name):
+   logger = logging.getLogger(logger_name)
+   logger.setLevel(logging.DEBUG)
+   logger.addHandler(get_console_handler())
+   logger.propagate = False
+   return logger
+
+
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config.from_object(config.Config)
 db = SQLAlchemy(app)
-
+debug_logger = get_logger("logger")
 
 class LinkType(str, Enum):
     partial_link = 'partial_link'
@@ -71,7 +90,9 @@ class LinkTable(db.Model):
     link_type = db.Column(db.String)
 
     def __repr__(self):
-        return "<Link(base='%s', url='%s')>" % (self.base_id, self.url)
+       return f"<Link(base_id={str(self.base_id)}, \
+                      url={str(self.url)}, \
+                      link_type={str(self.link_type)})>"
 
 
 class BaseLinkTable(db.Model):
@@ -81,7 +102,8 @@ class BaseLinkTable(db.Model):
     base_url = db.Column(db.String)
 
     def __repr__(self):
-        return "<Link(id='%s', url='%s')>" % (self.id, self.base_url)
+        return f"<BaseLink(id={str(self.id)}, \
+                           url={str(self.base_url)})>"
 
 
 def addLink(base_id, url, link_type):
@@ -99,7 +121,7 @@ def queryLink(url):
     return base_link.id
 
 
-# db.create_all()                                                       # Для внесения изменений)  
+# db.create_all()                                    # Для внесения изменений)  
 
 
 # --------------MESSAGE SENDER-----------------
@@ -109,7 +131,7 @@ def mes_sort(links, base_id, base_link):
     for link in links:
         link = link_decoder(link)
 
-        mes = mes + prefix.get(link.link_type) + link.url + '\n'
+        mes = mes + f"{prefix.get(link.link_type)}{link.url}\n"
         addLink(base_id, link.url, link.link_type)
 
     return mes
@@ -126,7 +148,7 @@ async def on_response(message: IncomingMessage):
 
     mes = mes_sort(links, id, base_link)
 
-    print(message.correlation_id + ' ' + base_link.url + ' done')
+    debug_logger.debug(f"{message.correlation_id} {base_link.url} done")
     future = GlobalVar.futures.pop(message.correlation_id)
     future.set_result(mes)
     
@@ -152,7 +174,7 @@ async def sender(loop, channel, base_link, request_id):
         routing_key="linkSender"
     )
 
-    print(request_id + ' ' + base_link.url + ' send to ' + callback_queue.name)
+    debug_logger.debug(f"{request_id} {base_link.url} send to {callback_queue.name}")
 
     return str(await future) 
 
@@ -164,11 +186,7 @@ async def sender_conn(loop, base_link, request_id):
     queue = await channel.declare_queue("linkReceiver")
     await queue.consume(on_response)
 
-    print(request_id + ' ' + base_link.url + ' presend')
-
     links_message = await sender(loop, channel, base_link, request_id)
-
-    print(request_id + ' ' + base_link.url + ' postsend')
 
     return links_message
     
@@ -191,3 +209,5 @@ def pageRender():
         return render_template('mainPage.html', massage=links_message)
 
     return render_template('mainPage.html', massage='')
+
+debug_logger.info("Server started. To exit press CTRL+C")
