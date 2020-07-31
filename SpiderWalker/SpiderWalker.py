@@ -113,7 +113,7 @@ def links_writer(url, data, request_id):
                     file.write(f'{link}\n')
             else:
                 file.write(f'{url}\n')
-        file.close()
+
     return (f'./links {request_id}.txt')
 
 
