@@ -6,7 +6,7 @@ jobs:
     steps:
       name:
       - black check
-        run: |
+        run:
           SpiderController\virtualPyCon\Scripts\activate
           black SpiderController\mainController.py
           black SpiderController\config.py
@@ -17,7 +17,7 @@ jobs:
 
       name: 
       - flake8 check
-        run: |
+        run:
           SpiderController\virtualPyCon\Scripts\activate
           flake8 SpiderController\mainController.py
           flake8 SpiderController\config.py
@@ -29,7 +29,7 @@ jobs:
     needs: autocheck
     name: 
     - walker test
-      run: |
+      run:
         SpiderWalker\virtualPy\Scripts\activate
         python SpiderWalker\tests\SpiderWalker_test.py
       shell: cmd
