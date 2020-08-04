@@ -3,7 +3,7 @@ on: push
 
 jobs:
   autocheck:
-    run-on: windows-latest
+    runs-on: windows-latest
     steps:
       - name: black check
         run: |
@@ -25,7 +25,7 @@ jobs:
           flake8 --ignore F401 SpiderWalker\tests
         shell: cmd
   test:
-    run-on: windows-latest
+    runs-on: windows-latest
     needs: autocheck
     steps:
       - name: walker test
