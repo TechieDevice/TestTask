@@ -4,25 +4,25 @@ on: push
 jobs:
   autocheck:
     steps:
-    - name: black check
-      run: |
-        SpiderController\virtualPyCon\Scripts\activate
-        black SpiderController\mainController.py
-        black SpiderController\config.py
-        black SpiderController\tests
-        black SpiderWalker\SpiderWalker.py
-        black SpiderWalker\tests
-      shell: cmd
+      - name: black check
+        run: |
+          SpiderController\virtualPyCon\Scripts\activate
+          black SpiderController\mainController.py
+          black SpiderController\config.py
+          black SpiderController\tests
+          black SpiderWalker\SpiderWalker.py
+          black SpiderWalker\tests
+        shell: cmd
 
-    - name: flake8 check
-      run: |
-        SpiderController\virtualPyCon\Scripts\activate
-        flake8 SpiderController\mainController.py
-        flake8 SpiderController\config.py
-        flake8 --ignore F401 SpiderController\tests
-        flake8 SpiderWalker\SpiderWalker.py
-        flake8 --ignore F401 SpiderWalker\tests
-      shell: cmd
+      - name: flake8 check
+        run: |
+          SpiderController\virtualPyCon\Scripts\activate
+          flake8 SpiderController\mainController.py
+          flake8 SpiderController\config.py
+          flake8 --ignore F401 SpiderController\tests
+          flake8 SpiderWalker\SpiderWalker.py
+          flake8 --ignore F401 SpiderWalker\tests
+        shell: cmd
   test:
     needs: autocheck
     name: walker test
