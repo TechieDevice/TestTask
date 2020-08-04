@@ -1,12 +1,8 @@
 # Virtual environment and unnecessary files
 RabbitMQ/
-virtualPyCon/
-virtualPy/
+SpiderWalker/virtualPy/*
 
 # Ignor for testing
-!/virtualPyCon/Scpipts/
-!/virtualPyCon/Lib/site-packages/black*
-!/virtualPyCon/Lib/site-packages/flake8*
 links*.txt
 
 # Byte-compiled / optimized / DLL files
