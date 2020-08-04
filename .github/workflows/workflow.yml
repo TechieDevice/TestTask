@@ -25,8 +25,9 @@ jobs:
         shell: cmd
   test:
     needs: autocheck
-    name: walker test
-    run: |
-      SpiderWalker\virtualPy\Scripts\activate
-      python SpiderWalker\tests\SpiderWalker_test.py
-    shell: cmd
+    steps:
+      - name: walker test
+        run: |
+          SpiderWalker\virtualPy\Scripts\activate
+          python SpiderWalker\tests\SpiderWalker_test.py
+        shell: cmd
