@@ -139,7 +139,6 @@ def mes_sort(links, base_id, base_link):
 
 
 async def on_response(message: IncomingMessage):
-    links: List[Link]
     links = []
     links = json.loads(message.body.decode("utf-8"))
     base_link = link_decoder(links.pop(0))
