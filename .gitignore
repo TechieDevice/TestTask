@@ -1,8 +1,7 @@
 # Virtual environment and unnecessary files
 RabbitMQ/
-SpiderWalker/virtualPy/*
-
-# Ignor for testing
+virtualPyCon/
+virtualPy/
 links*.txt
 
 # Byte-compiled / optimized / DLL files
