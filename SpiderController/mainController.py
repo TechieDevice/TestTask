@@ -1,7 +1,6 @@
 import uuid
 import json
 from enum import Enum
-from enum import EnumMeta
 from dataclasses import dataclass
 import logging
 import sys
@@ -13,15 +12,13 @@ from aio_pika import IncomingMessage
 from flask import Flask
 from flask import render_template
 from flask import request
-from flask import url_for
-from flask import redirect
 from flask_sqlalchemy import SQLAlchemy
-import reorder_python_imports
 
 import config
 
 
-FORMATTER = logging.Formatter(" * %(asctime)s — %(name)s — %(levelname)s — %(message)s")
+FORMATTER = logging.Formatter(
+    " * %(asctime)s — %(name)s — %(levelname)s — %(message)s")
 
 
 def get_console_handler():
@@ -171,12 +168,15 @@ async def sender(loop, channel, base_link, request_id):
 
     await channel.default_exchange.publish(
         Message(
-            bytes(msg, "utf-8"), correlation_id=request_id, reply_to=callback_queue.name
+            bytes(msg, "utf-8"), 
+            correlation_id=request_id, 
+            reply_to=callback_queue.name
         ),
         routing_key="linkSender",
     )
 
-    debug_logger.debug(f"{request_id} {base_link.url} send to {callback_queue.name}")
+    debug_logger.debug(
+        f"{request_id} {base_link.url} send to {callback_queue.name}")
 
     return str(await future)
 

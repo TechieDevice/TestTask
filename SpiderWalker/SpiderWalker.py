@@ -1,7 +1,6 @@
 import time
 import json
 from enum import Enum
-from enum import EnumMeta
 from dataclasses import dataclass
 from functools import partial
 import logging
@@ -14,11 +13,11 @@ from aio_pika import Message
 from aio_pika import IncomingMessage
 from aio_pika import Exchange
 from bs4 import BeautifulSoup
-import reorder_python_imports
 from selenium import webdriver
 
 
-FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
+FORMATTER = logging.Formatter(
+    "%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 
 
 def get_console_handler():
@@ -82,7 +81,7 @@ async def load_http(url):
     try:
         async with aiohttp.ClientSession() as session:
             html = await fetch(session, url)
-    except aiohttp.client_exceptions.InvalidURL as err:
+    except aiohttp.client_exceptions.InvalidURL:
         debug_logger.error(f"Неверная ссылка - {url}")
         return "Неправильная ссылка"
     return html
@@ -118,7 +117,6 @@ def links_writer(url, data, request_id):
 
 
 def link_sort(links_mas, links):
-    url = Link("", LinkType.init)
     for link in links_mas:
         if not link:
             continue
@@ -144,8 +142,8 @@ async def links_fetcher(base_url, request_id):
     links = link_sort(links_mas, [base_url])
 
     debug_logger.debug(
-        f"Done {base_url.url} for {request_id}, prosess took: {(time.time() - start):.2f} seconds"
-    )
+        f"Done {base_url.url} for {request_id}, \
+          prosess took: {(time.time() - start):.2f} seconds")
 
     return links
 
@@ -163,7 +161,8 @@ async def on_message(exchange: Exchange, message: IncomingMessage):
             Message(bytes(msg, "utf-8"), correlation_id=request_id),
             routing_key=message.reply_to,
         )
-        debug_logger.debug(f"{request_id} {base_url.url} send to {message.reply_to}")
+        debug_logger.debug(f"{request_id} {base_url.url} \
+                             send to {message.reply_to}")
 
 
 # Прослушивание
