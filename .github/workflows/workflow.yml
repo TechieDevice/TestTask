@@ -28,5 +28,5 @@ jobs:
           flake8 . --count --ignore=F823,F401,E501,W503 --show-source --statistics
       - name: test with pytest
         run: |
-          python setup.py install
+          python /home/runner/work/TestTask/TestTask/SpiderWalker/setup.py install
           pytest
