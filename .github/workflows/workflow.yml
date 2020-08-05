@@ -2,7 +2,7 @@ name: test_before_pushing
 on:
   pull_request:
     branches: [$default-branch] 
-  push
+  push:
 
 jobs:
   check:
