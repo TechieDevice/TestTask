@@ -1,4 +1,4 @@
-from script import SpiderWalker
+from script.SpiderWalker import parse_data
 
 
 class TestParsing:
@@ -15,6 +15,6 @@ class TestParsing:
                 else:
                     links.append(None)
 
-        result = SpiderWalker.parse_data(html_data)
+        result = parse_data(html_data)
 
         assert result == links
