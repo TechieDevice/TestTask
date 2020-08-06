@@ -15,6 +15,6 @@ class TestParsing:
                 else:
                     links.append(None)
 
-        result = parse_data(html_data)
+        result = SpiderWalker.parse_data(html_data)
 
         assert result == links
