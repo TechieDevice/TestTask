@@ -1,4 +1,4 @@
-from SpiderWalker import parse_data
+from script import SpiderWalker
 
 
 class TestParsing:

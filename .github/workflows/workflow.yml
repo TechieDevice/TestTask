@@ -29,5 +29,4 @@ jobs:
       - name: test with pytest
         run: |
           cd /home/runner/work/TestTask/TestTask/SpiderWalker/
-          python setup.py install
           pytest
