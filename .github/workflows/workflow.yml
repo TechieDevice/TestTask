@@ -29,4 +29,5 @@ jobs:
       - name: test with pytest
         run: |
           cd /home/runner/work/TestTask/TestTask/SpiderWalker/
+          export PYTHONPATH /home/runner/work/TestTask/TestTask/SpiderWalker/script/
           pytest
