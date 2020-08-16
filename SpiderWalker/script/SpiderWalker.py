@@ -169,20 +169,29 @@ async def on_message(exchange: Exchange, message: IncomingMessage):
 
 # Прослушивание
 async def main(loop):
-    try:
-        connection = await connect("amqp://guest:guest@localhost/", loop=loop)
-    except ConnectionError as err:
-        debug_logger.critical(f"{err}")
-        return
+    e = 0
+    while e < 5:
+        await asyncio.sleep(5)
+        try:
+            connection = await connect("amqp://admin:admin@rabbitmq/", loop=loop)
+            channel = await connection.channel()
+            queue = await channel.declare_queue("linkSender")
+            debug_logger.info("Waiting for messages. To exit press CTRL+C")
+            await queue.consume(partial(on_message, channel.default_exchange))
+            e = 5
+        except ConnectionError as err:
+            debug_logger.error(f"{err}")
+            if e < 6:
+                e += 1
+                debug_logger.error(f"reconnect")
+            else:
+                debug_logger.debug(f"exit")
+                return
 
-    channel = await connection.channel()
-    queue = await channel.declare_queue("linkSender")
-    await queue.consume(partial(on_message, channel.default_exchange))
 
 
 if __name__ == "__main__":
     debug_logger = get_logger("logger")
     loop = asyncio.get_event_loop()
     loop.create_task(main(loop))
-    debug_logger.info("Waiting for messages. To exit press CTRL+C")
     loop.run_forever()

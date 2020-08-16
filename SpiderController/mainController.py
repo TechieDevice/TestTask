@@ -118,7 +118,7 @@ def queryLink(url):
     return base_link.id
 
 
-# db.create_all()                                    # Для внесения изменений)
+db.create_all()                                    # Для внесения изменений)
 
 
 # --------------MESSAGE SENDER-----------------
@@ -129,8 +129,8 @@ def mes_sort(links, base_id, base_link):
     for link in links:
         link = link_decoder(link)
 
-        prefix = (prefix.get(link.link_type)).format(base_link=base_link.url)
-        mes += "{prefix}{url}\n".format(prefix=prefix, url=link.url)
+        pref = (prefix.get(link.link_type)).format(base_link=base_link.url)
+        mes += "{pref}{url}\n".format(pref=pref, url=link.url)
         addLink(base_id, link.url, link.link_type)
 
     return mes
@@ -176,7 +176,7 @@ async def sender(loop, channel, base_link, request_id):
 
 
 async def sender_conn(loop, base_link, request_id):
-    conn = await connect("amqp://guest:guest@localhost/", loop=loop)
+    conn = await connect("amqp://admin:admin@rabbitmq/", loop=loop)
     channel = await conn.channel()
 
     queue = await channel.declare_queue("linkReceiver")

@@ -1,0 +1,44 @@
+version: "3"
+services:
+
+  rabbitmq:
+    image: rabbitmq:management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "admin"
+  
+  postgresql:
+    image: postgres:12.3-alpine
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234567890
+      POSTGRES_DB: test_database
+
+  controller:
+    build: ./SpiderController
+    depends_on:
+      - rabbitmq
+      - postgresql
+    ports:
+      - "80:5000"
+    tty: true
+    links:
+      - rabbitmq
+      - postgresql
+    restart: on-failure
+
+  walker:
+    build: ./SpiderWalker
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    restart: on-failure
+
+volumes:
+  db-data:
