@@ -183,9 +183,9 @@ async def main(loop):
             debug_logger.error(f"{err}")
             if e < 6:
                 e += 1
-                debug_logger.error(f"reconnect")
+                debug_logger.error("reconnect")
             else:
-                debug_logger.debug(f"exit")
+                debug_logger.debug("exit")
                 return
 
 
