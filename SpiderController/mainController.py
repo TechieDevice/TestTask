@@ -1,24 +1,19 @@
-import uuid
+import asyncio
 import json
-from enum import Enum
-from enum import EnumMeta
-from dataclasses import dataclass
 import logging
 import sys
+import uuid
+from dataclasses import dataclass
+from enum import Enum
 
-import asyncio
+import config
 from aio_pika import connect
-from aio_pika import Message
 from aio_pika import IncomingMessage
+from aio_pika import Message
 from flask import Flask
 from flask import render_template
 from flask import request
-from flask import url_for
-from flask import redirect
 from flask_sqlalchemy import SQLAlchemy
-import reorder_python_imports
-
-import config
 
 
 FORMATTER = logging.Formatter(" * %(asctime)s — %(name)s — %(levelname)s — %(message)s")
@@ -123,7 +118,7 @@ def queryLink(url):
     return base_link.id
 
 
-# db.create_all()                                    # Для внесения изменений)
+db.create_all()                                    # Для внесения изменений)
 
 
 # --------------MESSAGE SENDER-----------------
@@ -134,15 +129,14 @@ def mes_sort(links, base_id, base_link):
     for link in links:
         link = link_decoder(link)
 
-        prefix = (prefix.get(link.link_type)).format(base_link=base_link.url)
-        mes += "{prefix}{url}\n".format(prefix=prefix, url=link.url)
+        pref = (prefix.get(link.link_type)).format(base_link=base_link.url)
+        mes += "{pref}{url}\n".format(pref=pref, url=link.url)
         addLink(base_id, link.url, link.link_type)
 
     return mes
 
 
 async def on_response(message: IncomingMessage):
-    links: List[Link]
     links = []
     links = json.loads(message.body.decode("utf-8"))
     base_link = link_decoder(links.pop(0))
@@ -182,7 +176,7 @@ async def sender(loop, channel, base_link, request_id):
 
 
 async def sender_conn(loop, base_link, request_id):
-    conn = await connect("amqp://guest:guest@localhost/", loop=loop)
+    conn = await connect("amqp://admin:admin@rabbitmq/", loop=loop)
     channel = await conn.channel()
 
     queue = await channel.declare_queue("linkReceiver")

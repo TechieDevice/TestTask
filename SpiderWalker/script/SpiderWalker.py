@@ -1,20 +1,18 @@
-import time
+import asyncio
 import json
-from enum import Enum
-from enum import EnumMeta
-from dataclasses import dataclass
-from functools import partial
 import logging
 import sys
+import time
+from dataclasses import dataclass
+from enum import Enum
+from functools import partial
 
-import asyncio
 import aiohttp
 from aio_pika import connect
-from aio_pika import Message
-from aio_pika import IncomingMessage
 from aio_pika import Exchange
+from aio_pika import IncomingMessage
+from aio_pika import Message
 from bs4 import BeautifulSoup
-import reorder_python_imports
 from selenium import webdriver
 
 
@@ -82,7 +80,7 @@ async def load_http(url):
     try:
         async with aiohttp.ClientSession() as session:
             html = await fetch(session, url)
-    except aiohttp.client_exceptions.InvalidURL as err:
+    except aiohttp.client_exceptions.InvalidURL:
         debug_logger.error(f"Неверная ссылка - {url}")
         return "Неправильная ссылка"
     return html
@@ -118,7 +116,6 @@ def links_writer(url, data, request_id):
 
 
 def link_sort(links_mas, links):
-    url = Link("", LinkType.init)
     for link in links_mas:
         if not link:
             continue
@@ -144,7 +141,8 @@ async def links_fetcher(base_url, request_id):
     links = link_sort(links_mas, [base_url])
 
     debug_logger.debug(
-        f"Done {base_url.url} for {request_id}, prosess took: {(time.time() - start):.2f} seconds"
+        f"Done {base_url.url} for {request_id}, \
+          prosess took: {(time.time() - start):.2f} seconds"
     )
 
     return links
@@ -163,25 +161,37 @@ async def on_message(exchange: Exchange, message: IncomingMessage):
             Message(bytes(msg, "utf-8"), correlation_id=request_id),
             routing_key=message.reply_to,
         )
-        debug_logger.debug(f"{request_id} {base_url.url} send to {message.reply_to}")
+        debug_logger.debug(
+            f"{request_id} {base_url.url} \
+                             send to {message.reply_to}"
+        )
 
 
 # Прослушивание
 async def main(loop):
-    try:
-        connection = await connect("amqp://guest:guest@localhost/", loop=loop)
-    except ConnectionError as err:
-        debug_logger.critical(f"{err}")
-        return
+    e = 0
+    while e < 5:
+        await asyncio.sleep(5)
+        try:
+            connection = await connect("amqp://admin:admin@rabbitmq/", loop=loop)
+            channel = await connection.channel()
+            queue = await channel.declare_queue("linkSender")
+            debug_logger.info("Waiting for messages. To exit press CTRL+C")
+            await queue.consume(partial(on_message, channel.default_exchange))
+            e = 5
+        except ConnectionError as err:
+            debug_logger.error(f"{err}")
+            if e < 6:
+                e += 1
+                debug_logger.error("reconnect")
+            else:
+                debug_logger.debug("exit")
+                return
 
-    channel = await connection.channel()
-    queue = await channel.declare_queue("linkSender")
-    await queue.consume(partial(on_message, channel.default_exchange))
 
 
 if __name__ == "__main__":
     debug_logger = get_logger("logger")
     loop = asyncio.get_event_loop()
     loop.create_task(main(loop))
-    debug_logger.info("Waiting for messages. To exit press CTRL+C")
     loop.run_forever()

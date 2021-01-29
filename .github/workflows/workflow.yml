@@ -1,0 +1,32 @@
+name: test_before_pushing
+on:
+  pull_request:
+    branches: [$default-branch]
+  push:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+          architecture: 'x64'
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SpiderWalker/requirements.txt;
+      - name: black check
+        run: |
+          black .
+      - name: flake8 check
+        run: |
+          flake8 . --count --ignore=F823,F401,E501,W503 --show-source --statistics
+      - name: test with pytest
+        run: |
+          cd /home/runner/work/TestTask/TestTask/SpiderWalker/
+          export PYTHONPATH='/home/runner/work/TestTask/TestTask/SpiderWalker/'
+          pytest
